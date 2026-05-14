@@ -136,5 +136,6 @@ REST_FRAMEWORK = {
     ]
 }
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173" # React (Vite)
+    "http://localhost:5173", # React (Vite) - основной порт
+    "http://localhost:5175", # React (Vite) - альтернативный порт
 ]

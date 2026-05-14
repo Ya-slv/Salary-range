@@ -10,4 +10,4 @@ class ResumeDataSerialazer(serializers.Serializer):
 class CalculateSalarySerialazer(serializers.Serializer):
     min_salary = serializers.IntegerField()
     max_salary = serializers.IntegerField()
-    recommendation = serializers.ListField(child=serializers.CharField())
+    recommendations = serializers.ListField(child=serializers.CharField())
