@@ -19,7 +19,7 @@ print(f"1/4 Загрузка объединенного датасета из и
 df = pd.read_csv(data_path, sep=";")
 
 # Выделяем признаки (X) и таргет (y)
-features = ['name', 'city', 'experience_years', 'employment', 'schedule','skills', 'role', 'industry', 'employer']
+features = ['name', 'city', 'experience_years', 'employment', 'schedule','skills', 'role', 'industry', 'employer','grade']
 X = df[features].copy()
 y = df['salary']
 
@@ -48,7 +48,7 @@ for col in X.columns:
 # Список всех текстовых (категориальных) колонок. 
 # Мы передадим его CatBoost, чтобы он сам превратил их в умные числа.
 
-cat_features = ['name', 'city', 'experience_years', 'employment', 'schedule', 'role', 'industry', 'employer']
+cat_features = ['name', 'city', 'experience_years', 'employment', 'schedule', 'role', 'industry', 'employer','grade']
 
 text_features = ['name', 'skills']
 
