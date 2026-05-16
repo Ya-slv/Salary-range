@@ -217,5 +217,9 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+
+#artimon_part
 /data
 /deprecated
+/catboost_info
+.env
