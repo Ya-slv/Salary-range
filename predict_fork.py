@@ -30,13 +30,14 @@ def get_fork_and_advices(input_data):
     
     # Ищем вакансии с такой же ролью/грейдом, но где средняя ЗП выше, чем предсказанный максимум пользователя
     rich_vacancies = db[
-        (db['grade'] == input_data['grade']) & 
+        (db['role'] == input_data['role']) & 
+        (db['experience'] == input_data['experience']) & 
         (db['salary'] > pred_to)
     ]
     
     # Если в этой категории мало данных, расширяем поиск на грейд выше
-    if len(rich_vacancies) < 5 and input_data['grade'] == 'Middle':
-        rich_vacancies = db[db['grade'] == 'Senior']
+    if len(rich_vacancies) < 5:
+        rich_vacancies = db[db['experience'] == input_data['experience']]
         
     # Собираем все навыки высокооплачиваемых вакансий
     rich_skills_pool = []
@@ -63,13 +64,12 @@ user_vacancy = {
     'role': 'Программист, разработчик',
     'industry': 'unknown',
     'employer': 'unknown',
-    'grade': 'Middle'
 }
 
 salary_from, salary_to, skills_advice = get_fork_and_advices(user_vacancy)
 
 print("==================================================")
-print(f"Вакансия: {user_vacancy['name']} ({user_vacancy['grade']})")
+print(f"Вакансия: {user_vacancy['name']}")
 print(f"Рассчитанная вилка: от {salary_from:,} до {salary_to:,} руб.".replace(',', ' '))
 print("==================================================")
 print("РЕКОМЕНДАЦИЯ ПО СТЕКУ:")

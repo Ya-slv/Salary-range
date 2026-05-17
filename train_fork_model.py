@@ -15,7 +15,7 @@ db_output = os.getenv("DB_OUTPUT")
 
 print("Загружаем датасет для квантильной вилки из папки data/...")
 df = pd.read_csv(input_file, sep=';', encoding='utf-8-sig', on_bad_lines='skip', engine='python')
-df.columns = ['name', 'city', 'salary', 'experience', 'schedule', 'skills', 'role', 'industry', 'employer', 'grade']
+df.columns = ['name', 'city', 'salary', 'experience', 'schedule', 'skills', 'role', 'industry', 'employer','grade']
 
 # Очистка данных от нетехнических вакансий
 garbage_patterns = 'продавец|консультант|станок|чпу|фрезеровщик|зубной|техник|художник|лаборант'
@@ -38,10 +38,10 @@ df['skills'] = df['skills'].apply(transform_skills)
 
 # Подготовка признаков
 y = df['salary']
-features = ['name', 'city', 'experience', 'schedule', 'skills', 'role', 'industry', 'employer', 'grade']
+features = ['name', 'city', 'experience', 'schedule', 'skills', 'role', 'industry', 'employer']
 X = df[features].fillna('unknown')
 
-cat_features = ['city', 'experience', 'schedule', 'role', 'industry', 'employer', 'grade']
+cat_features = ['city', 'experience', 'schedule', 'role', 'industry', 'employer']
 text_features = ['name', 'skills']
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
