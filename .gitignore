@@ -223,3 +223,6 @@ __marimo__/
 /deprecated
 /catboost_info
 .env
+
+
+data

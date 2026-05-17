@@ -9,10 +9,12 @@ from rest_framework.response import Response
 
 from .serializers import ResumeDataSerializer, CalculateSalarySerializer
 from .services import extract_text_from_file, parse_with_local_llm
+from .ml_service import get_fork_and_advices
+
 @extend_schema(
     summary="Расчёт вилки дохода и рекомендации",
     description=(
-        "Принимает данные резюме, возвращает прогноз зарплаты и список улучшений. В режиме заглушки"
+        "Принимает данные резюме, возвращает прогноз зарплаты и список улучшений."
     ),
     request=ResumeDataSerializer,
     responses={
@@ -27,12 +29,10 @@ def calculate_salary(request):
     serializer = ResumeDataSerializer(data=request.data)
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    data = serializer.data
-    result = {
-        "min_salary": 0,
-        "max_salary": 100000,
-        "recommendations": ['ПРОСНИСЬ и РАБОТАЙ', "спи больше"]
-    }
+    
+    data = serializer.validated_data
+    result = get_fork_and_advices(data)
+    
     return Response(result, status=status.HTTP_200_OK)
 @extend_schema(
     summary="Парсинг резюме",
