@@ -8,7 +8,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 
 from .serializers import ResumeDataSerializer, CalculateSalarySerializer
-from services import extract_text_from_file, parse_with_local_llm
+from .services import extract_text_from_file, parse_with_local_llm
 @extend_schema(
     summary="Расчёт вилки дохода и рекомендации",
     description=(
