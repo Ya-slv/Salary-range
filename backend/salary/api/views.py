@@ -1,7 +1,6 @@
 import json
 
-from django.shortcuts import render
-from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
+from drf_spectacular.utils import extend_schema, OpenApiResponse
 from rest_framework import status
 from rest_framework.decorators import api_view, parser_classes
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -37,15 +36,19 @@ def calculate_salary(request):
 @extend_schema(
     summary="Парсинг резюме",
     description="Загружает файл резюме (PDF/DOCX/TXT, до 5 МБ) и извлекает данные через локальную LLM.",
-    parameters=[
-        OpenApiParameter(
-            name="resume",
-            type=OpenApiParameter.BINARY,
-            location=OpenApiParameter.FORM,
-            required=True,
-            description="Файл резюме (PDF, DOCX, DOC, TXT)"
-        )
-    ],
+    request={
+        'multipart/form-data': {
+            'type': 'object',
+            'properties': {
+                'resume': {
+                    'type': 'string',
+                    'format': 'binary',
+                    'description': 'Файл резюме (PDF, DOCX, DOC, TXT)'
+                }
+            },
+            'required': ['resume']
+        }
+    },
     responses={
         200: ResumeDataSerializer,
         400: OpenApiResponse(description="Ошибка: файл не валиден или не удалось распарсить"),
@@ -84,24 +87,32 @@ def parse_resume(request):
                 {"error": "Не удалось распарсить резюме: данные не соответствуют ожидаемому формату",
                 "details": serializer.errors},
                 status=status.HTTP_400_BAD_REQUEST)
-    except FileNotFoundError:
+    except FileNotFoundError as e:
+        import traceback
+        traceback.print_exc()
         return Response(
-            {"error": "Файл модели не найден. Положите .gguf в backend/api/models/"},
+            {"error": f"Файл модели не найден: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
     except RuntimeError as e:
+        import traceback
+        traceback.print_exc()
         return Response(
-        {"error": f"Ошибка инициализации модели: {str(e)}"},
-        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            {"error": f"Ошибка модели: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        import traceback
+        traceback.print_exc()
         return Response(
-            {"error": "Не удалось распарсить резюме: модель вернула невалидный JSON"},
+            {"error": f"Невалидный JSON от модели: {str(e)}"},
             status=status.HTTP_400_BAD_REQUEST
         )
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return Response(
-            {"error": "Не удалось распарсить резюме. Попробуйте другой файл или формат."},
+            {"error": f"Не удалось распарсить резюме: {str(e)}"},
             status=status.HTTP_400_BAD_REQUEST
         )
 

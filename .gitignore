@@ -226,3 +226,7 @@ __marimo__/
 
 
 data
+
+# Local model weights
+*.gguf
+*.cbm

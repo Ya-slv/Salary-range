@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 from catboost import CatBoostRegressor
 from sklearn.model_selection import train_test_split
 import ast
@@ -9,9 +8,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 # Прямые пути к файлам
-input_file = os.getenv("INPUT_DATASET_PATH")
-model_output = os.getenv("MODEL_OUTPUT_PATH")
-db_output = os.getenv("DB_OUTPUT")
+input_file = os.getenv("INPUT_DATASET_PATH", "new model/Z_new.csv")
+model_output = os.getenv("MODEL_OUTPUT_PATH", "data/model.cbm")
+db_output = os.getenv("DB_OUTPUT", "data/vacancies.csv")
 
 print("Загружаем датасет для квантильной вилки из папки data/...")
 df = pd.read_csv(input_file, sep=';', encoding='utf-8-sig', on_bad_lines='skip', engine='python')
@@ -20,7 +19,8 @@ df.columns = ['name', 'city', 'salary', 'experience', 'schedule', 'skills', 'rol
 # Очистка данных от нетехнических вакансий
 garbage_patterns = 'продавец|консультант|станок|чпу|фрезеровщик|зубной|техник|художник|лаборант'
 df = df[~df['name'].str.contains(garbage_patterns, case=False, na=False)]
-df = df.dropna(subset=['salary', 'name'])
+df = df.dropna(subset=['salary', 'name', 'skills'])
+df = df[~df['skills'].astype(str).str.strip().isin(['', 'nan', 'NaN', '[]'])]
 df['salary'] = df['salary'].astype(float)
 
 def transform_skills(skills_val):
@@ -30,7 +30,7 @@ def transform_skills(skills_val):
         parsed = ast.literal_eval(str(skills_val).strip())
         if isinstance(parsed, list): 
             return ", ".join(parsed)
-    except: 
+    except Exception: 
         pass
     return str(skills_val).replace('[', '').replace(']', '').replace("'", "").strip()
 
@@ -44,7 +44,7 @@ X = df[features].fillna('unknown')
 cat_features = ['city', 'experience', 'schedule', 'role', 'industry', 'employer']
 text_features = ['name', 'skills']
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.07, random_state=42)
 
 print("\nОбучаем ОДНУ модель MultiQuantile для предсказания вилок...")
 model = CatBoostRegressor(

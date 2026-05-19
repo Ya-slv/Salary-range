@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import numpy as np
 import logging
 from catboost import CatBoostRegressor
 from collections import Counter
@@ -17,35 +18,47 @@ _model = None
 _db = None
 _model_loaded = False
 _db_loaded = False
+_model_mtime = 0
+_db_mtime = 0
 
 def load_ml_resources():
-    global _model, _db, _model_loaded, _db_loaded
+    global _model, _db, _model_loaded, _db_loaded, _model_mtime, _db_mtime
     
     model_path = os.getenv("MODEL_OUTPUT_PATH", DEFAULT_MODEL_PATH)
     db_path = os.getenv("DB_OUTPUT", DEFAULT_DB_PATH)
     
-    if not _model_loaded:
-        if os.path.exists(model_path):
+    if os.path.exists(model_path):
+        mtime = os.path.getmtime(model_path)
+        if not _model_loaded or mtime > _model_mtime:
             try:
                 _model = CatBoostRegressor()
                 _model.load_model(model_path)
                 _model_loaded = True
-                logger.info(f"Loaded ML model from {model_path}")
+                _model_mtime = mtime
+                logger.info(f"Loaded/reloaded ML model from {model_path} (mtime: {mtime})")
             except Exception as e:
                 logger.error(f"Failed to load ML model: {e}")
-        else:
-            logger.warning(f"ML model file not found at {model_path}")
+    else:
+        logger.warning(f"ML model file not found at {model_path}")
+        _model_loaded = False
+        _model = None
+        _model_mtime = 0
             
-    if not _db_loaded:
-        if os.path.exists(db_path):
+    if os.path.exists(db_path):
+        mtime = os.path.getmtime(db_path)
+        if not _db_loaded or mtime > _db_mtime:
             try:
                 _db = pd.read_csv(db_path, encoding='utf-8', sep=None, engine='python')
                 _db_loaded = True
-                logger.info(f"Loaded vacancies DB from {db_path}")
+                _db_mtime = mtime
+                logger.info(f"Loaded/reloaded vacancies DB from {db_path} (mtime: {mtime})")
             except Exception as e:
                 logger.error(f"Failed to load DB: {e}")
-        else:
-            logger.warning(f"Vacancies DB not found at {db_path}")
+    else:
+        logger.warning(f"Vacancies DB not found at {db_path}")
+        _db_loaded = False
+        _db = None
+        _db_mtime = 0
 
 def map_experience(experience_years):
     if experience_years == 0:
@@ -68,17 +81,35 @@ def get_fork_and_advices(input_data):
     """
     load_ml_resources()
     
-    # Map input data to model format
-    mapped_data = {
+    # Map input data to all possible keys
+    all_possible_data = {
         'name': input_data.get('role', 'unknown'),
         'city': input_data.get('region', 'unknown'),
         'experience': map_experience(input_data.get('experience_year', 0)),
+        'experience_years': map_experience(input_data.get('experience_year', 0)),
+        'employment': 'unknown',
         'schedule': input_data.get('schedule', 'unknown'),
         'skills': ', '.join(input_data.get('skills', [])),
         'role': input_data.get('role', 'unknown'),
         'industry': 'unknown',
         'employer': 'unknown',
+        'grade': 'unknown',
     }
+    
+    # Construct df_custom with the exact features expected by the loaded model
+    if _model_loaded and _model is not None and hasattr(_model, 'feature_names_') and _model.feature_names_ is not None:
+        mapped_data = {feat: all_possible_data.get(feat, 'unknown') for feat in _model.feature_names_}
+    else:
+        mapped_data = {
+            'name': all_possible_data['name'],
+            'city': all_possible_data['city'],
+            'experience': all_possible_data['experience'],
+            'schedule': all_possible_data['schedule'],
+            'skills': all_possible_data['skills'],
+            'role': all_possible_data['role'],
+            'industry': all_possible_data['industry'],
+            'employer': all_possible_data['employer'],
+        }
     
     # If model or DB is missing, return fallback data
     if not _model_loaded or not _db_loaded:
@@ -95,8 +126,26 @@ def get_fork_and_advices(input_data):
     
     try:
         prediction = _model.predict(df_custom)
-        pred_from = max(0, int(prediction[0][0]))
-        pred_to = max(pred_from, int(prediction[0][1]))
+        pred_arr = np.asarray(prediction)
+        # Check if prediction is MultiQuantile (2D array with 2 values per row)
+        if pred_arr.ndim > 1 and pred_arr.shape[1] >= 2:
+            pred_from = max(0, int(pred_arr[0][0]))
+            pred_to = max(pred_from, int(pred_arr[0][1]))
+        elif pred_arr.ndim > 1 and pred_arr.shape[1] == 1:
+            val = pred_arr[0][0]
+            pred_from = max(0, int(val * 0.85))
+            pred_to = max(pred_from, int(val * 1.15))
+        elif pred_arr.ndim == 1 and len(pred_arr) >= 2:
+            pred_from = max(0, int(pred_arr[0]))
+            pred_to = max(pred_from, int(pred_arr[1]))
+        elif pred_arr.ndim == 1 and len(pred_arr) == 1:
+            val = pred_arr[0]
+            pred_from = max(0, int(val * 0.85))
+            pred_to = max(pred_from, int(val * 1.15))
+        else:
+            val = float(pred_arr)
+            pred_from = max(0, int(val * 0.85))
+            pred_to = max(pred_from, int(val * 1.15))
     except Exception as e:
         logger.error(f"Prediction failed: {e}")
         pred_from, pred_to = 0, 100000
@@ -104,20 +153,20 @@ def get_fork_and_advices(input_data):
     recommendations = []
     if _db_loaded and _db is not None:
         try:
-            current_skills = [s.strip().lower() for s in mapped_data['skills'].split(',')]
+            current_skills = [s.strip().lower() for s in all_possible_data['skills'].split(',')]
             
             # Check if salary column exists, some CSVs might have different names
             if 'salary' in _db.columns:
                 rich_vacancies = _db[
-                    (_db['role'] == mapped_data['role']) & 
-                    (_db['experience'] == mapped_data['experience']) & 
+                    (_db['role'] == all_possible_data['role']) & 
+                    (_db['experience'] == all_possible_data['experience']) & 
                     (_db['salary'] > pred_to)
                 ]
             else:
                 rich_vacancies = pd.DataFrame()
             
             if len(rich_vacancies) < 5:
-                rich_vacancies = _db[_db['experience'] == mapped_data['experience']]
+                rich_vacancies = _db[_db['experience'] == all_possible_data['experience']]
                 
             rich_skills_pool = []
             if 'skills' in rich_vacancies.columns:
